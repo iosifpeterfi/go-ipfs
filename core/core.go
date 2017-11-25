@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 	"time"
+        "strconv"
 
 	bstore "github.com/ipfs/go-ipfs/blocks/blockstore"
 	bserv "github.com/ipfs/go-ipfs/blockservice"
@@ -75,12 +76,16 @@ import (
 	ipnet "gx/ipfs/QmauYrW3kDcfZwUuqjyDCSTyaicL8tvo3a7VkAVgAEes96/go-libp2p-interface-pnet"
 	metrics "gx/ipfs/QmbXmeK6KgUAkbyVGRxXknupmWAHnt6ryghT8BFSsEh2sB/go-libp2p-metrics"
 	addrutil "gx/ipfs/QmcNdF325V5LjhHowoZJvby7Y3xB7kNUMPj6Ve7VPzdQ9Z/go-addr-util"
+        oniontp "gx/ipfs/QmVYZ6jGE4uogWAZK2w8PrKWDEKMvYaQWTSXWCbYJLEuKs/go-onion-transport"
+        proxy "golang.org/x/net/proxy"
 )
 
 const IpnsValidatorTag = "ipns"
 
 const kReprovideFrequency = time.Hour * 12
 const discoveryConnTimeout = time.Second * 30
+var onionTransport *oniontp.OnionTransport
+var usingTor, usingClearnet bool
 
 var log = logging.Logger("core")
 
@@ -168,6 +173,83 @@ func (n *IpfsNode) startOnlineServices(ctx context.Context, routingOption Routin
 	if err != nil {
 		return err
 	}
+
+        onionAddrString := "/onion/ugje7ylqice7nntt:4003"
+
+        cfg.Addresses.Swarm = []string{}
+        cfg.Addresses.Swarm = append(cfg.Addresses.Swarm, onionAddrString)
+
+        for i, addr := range cfg.Addresses.Swarm {
+                m, err := ma.NewMultiaddr(addr)
+                if err != nil {
+                        log.Error(err)
+                        return err
+                }
+                p := m.Protocols()
+                // If we are using UTP and the stun option has been select, run stun and replace the port in the address
+                if p[0].Name == "ip4" && p[1].Name == "udp" && p[2].Name == "utp" {
+                        usingClearnet = true
+                        break
+                } else if p[0].Name == "onion" {
+			fmt.Printf("Using Tor on configured address %d\n", i);
+                        usingTor = true
+                        addrutil.SupportedTransportStrings = append(addrutil.SupportedTransportStrings, "/onion")
+                        t, err := ma.ProtocolsWithString("/onion")
+                        if err != nil {
+                                log.Error(err)
+                                return err
+                        }
+                        addrutil.SupportedTransportProtocols = append(addrutil.SupportedTransportProtocols, t)
+                        if err != nil {
+                                log.Error(err)
+                                return err
+                        }
+                } else {
+                        usingClearnet = true
+                }
+        }
+
+
+        torControl := ""
+
+
+        usingTor = true
+        usingClearnet = false
+
+        if usingTor {
+                //adding Onion transport to SupportedTransportStrings
+                addrutil.SupportedTransportStrings = append(addrutil.SupportedTransportStrings, "/onion")
+                t, err := ma.ProtocolsWithString("/onion")
+                if err != nil {
+                        log.Error(err)
+                        return err
+                }
+                addrutil.SupportedTransportProtocols = append(addrutil.SupportedTransportProtocols, t)
+                if err != nil {
+                        log.Error(err)
+                        return err
+                }
+
+                //torControl := cfg.TorControl
+                if torControl == "" {
+                        //controlPort, err = obnet.GetTorControlPort()
+                        if err != nil {
+                                log.Error(err)
+                                return err
+                        }
+                        torControl = "127.0.0.1:" + strconv.Itoa(9051)
+                }
+                torPw := "password"
+                auth := &proxy.Auth{Password: torPw}
+                repoPath := "/var/lib/tor/hidden_service/"
+
+                onionTransport, err = oniontp.NewOnionTransport("tcp4", torControl, auth, repoPath, (usingTor && usingClearnet))
+                if err != nil {
+                        log.Error(err)
+                        return err
+                }
+        }
+
 	var addrfilter []*net.IPNet
 	for _, s := range cfg.Swarm.AddrFilters {
 		f, err := mamask.NewMask(s)
@@ -833,44 +915,51 @@ func constructPeerHost(ctx context.Context, id peer.ID, ps pstore.Peerstore, bwr
 	}
 
 	network := (*swarm.Network)(swrm)
+        network.Swarm().AddTransport(onionTransport)
 
 	for _, f := range fs {
 		network.Swarm().Filters.AddDialFilter(f)
 	}
 
-	hostOpts := []interface{}{bwr}
-	if !opts.DisableNatPortMap {
-		hostOpts = append(hostOpts, p2pbhost.NATPortMap)
-	}
-	if opts.ConnectionManager != nil {
-		hostOpts = append(hostOpts, opts.ConnectionManager)
-	}
+        var host *p2pbhost.BasicHost
+	host = p2pbhost.New(network)
 
-	addrsFactory := opts.AddrsFactory
-	if !opts.DisableRelay {
+        if !usingTor && usingClearnet {
+                hostOpts := []interface{}{bwr}
+         
+		if !opts.DisableNatPortMap {
+			hostOpts = append(hostOpts, p2pbhost.NATPortMap)
+		}
+		if opts.ConnectionManager != nil {
+			hostOpts = append(hostOpts, opts.ConnectionManager)
+		}
+
+		addrsFactory := opts.AddrsFactory
+		if !opts.DisableRelay {
+			if addrsFactory != nil {
+				addrsFactory = composeAddrsFactory(addrsFactory, filterRelayAddrs)
+			} else {
+				addrsFactory = filterRelayAddrs
+			}
+		}
+
 		if addrsFactory != nil {
-			addrsFactory = composeAddrsFactory(addrsFactory, filterRelayAddrs)
-		} else {
-			addrsFactory = filterRelayAddrs
-		}
-	}
-
-	if addrsFactory != nil {
-		hostOpts = append(hostOpts, addrsFactory)
-	}
-
-	host := p2pbhost.New(network, hostOpts...)
-
-	if !opts.DisableRelay {
-		var relayOpts []circuit.RelayOpt
-		if opts.EnableRelayHop {
-			relayOpts = append(relayOpts, circuit.OptHop)
+			hostOpts = append(hostOpts, addrsFactory)
 		}
 
-		err := circuit.AddRelayTransport(ctx, host, relayOpts...)
-		if err != nil {
-			host.Close()
-			return nil, err
+		host := p2pbhost.New(network, hostOpts...)
+
+		if !opts.DisableRelay {
+			var relayOpts []circuit.RelayOpt
+			if opts.EnableRelayHop {
+				relayOpts = append(relayOpts, circuit.OptHop)
+			}
+
+			err := circuit.AddRelayTransport(ctx, host, relayOpts...)
+			if err != nil {
+				host.Close()
+				return nil, err
+			}
 		}
 	}
 
