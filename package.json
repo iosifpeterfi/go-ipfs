@@ -1,9 +1,9 @@
 {
   "bugs": {
-    "url": "https://github.com/ipfs/go-ipfs"
+    "url": "https://github.com/iosifpeterfi/go-ipfs"
   },
   "gx": {
-    "dvcsimport": "github.com/ipfs/go-ipfs",
+    "dvcsimport": "github.com/iosifpetefi/go-ipfs",
     "goversion": "1.8"
   },
   "gxDependencies": [
