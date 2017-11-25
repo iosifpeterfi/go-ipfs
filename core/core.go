@@ -76,7 +76,7 @@ import (
 	ipnet "gx/ipfs/QmauYrW3kDcfZwUuqjyDCSTyaicL8tvo3a7VkAVgAEes96/go-libp2p-interface-pnet"
 	metrics "gx/ipfs/QmbXmeK6KgUAkbyVGRxXknupmWAHnt6ryghT8BFSsEh2sB/go-libp2p-metrics"
 	addrutil "gx/ipfs/QmcNdF325V5LjhHowoZJvby7Y3xB7kNUMPj6Ve7VPzdQ9Z/go-addr-util"
-        oniontp "gx/ipfs/QmVYZ6jGE4uogWAZK2w8PrKWDEKMvYaQWTSXWCbYJLEuKs/go-onion-transport"
+        oniontp "gx/ipfs/QmZxFUP9NoDAtxA8ueS2bKGQGZj2upWRUw1SGCdiUDqiFZ/go-onion-transport"
         proxy "golang.org/x/net/proxy"
 )
 
