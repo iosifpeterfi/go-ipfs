@@ -1,9 +1,9 @@
 {
   "bugs": {
-    "url": "https://github.com/iosifpeterfi/go-ipfs"
+    "url": "https://github.com/ipfs/go-ipfs"
   },
   "gx": {
-    "dvcsimport": "github.com/iosifpetefi/go-ipfs",
+    "dvcsimport": "github.com/ipfs/go-ipfs",
     "goversion": "1.8"
   },
   "gxDependencies": [
@@ -502,6 +502,12 @@
       "author": "The Go Authors",
       "hash": "QmPXvegq26x982cQjSfbTvSzZXn7GiaMwhhVPHkeTEhrPT",
       "name": "sys",
+      "version": "0.1.0"
+    },
+    {
+      "author": "chris",
+      "hash": "QmVYZ6jGE4uogWAZK2w8PrKWDEKMvYaQWTSXWCbYJLEuKs",
+      "name": "go-onion-transport",
       "version": "0.1.0"
     }
   ],
