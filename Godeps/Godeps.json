@@ -60,6 +60,10 @@
 		{
 			"ImportPath": "github.com/whyrusleeping/chunker",
 			"Rev": "537e901819164627ca4bb5ce4e3faa8ce7956564"
+		},
+		{
+			"ImportPath": "github.com/Yawning/bulb",
+			"Rev": "85d80d893c3d4a478b8c0abbc43f0ea13e1ce4f9"
 		}
 	]
 }
