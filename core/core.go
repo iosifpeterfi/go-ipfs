@@ -174,9 +174,10 @@ func (n *IpfsNode) startOnlineServices(ctx context.Context, routingOption Routin
 		return err
 	}
 
-
+	addrs := map[int]string{}
         for i, addr := range cfg.Addresses.Swarm {
-                m, err := ma.NewMultiaddr(addr)
+		addrs[i] = addr
+                m, err := ma.NewMultiaddr(addrs[i])
                 if err != nil {
                         log.Error(err)
                         return err
