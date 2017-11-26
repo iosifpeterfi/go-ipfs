@@ -76,7 +76,7 @@ import (
 	ipnet "gx/ipfs/QmauYrW3kDcfZwUuqjyDCSTyaicL8tvo3a7VkAVgAEes96/go-libp2p-interface-pnet"
 	metrics "gx/ipfs/QmbXmeK6KgUAkbyVGRxXknupmWAHnt6ryghT8BFSsEh2sB/go-libp2p-metrics"
 	addrutil "gx/ipfs/QmcNdF325V5LjhHowoZJvby7Y3xB7kNUMPj6Ve7VPzdQ9Z/go-addr-util"
-        oniontp "gx/ipfs/QmZxFUP9NoDAtxA8ueS2bKGQGZj2upWRUw1SGCdiUDqiFZ/go-onion-transport"
+        oniontp "gx/ipfs/QmNP7jwQk7ogMYibnN6ZvrZJfypH7mNwgYkDHteNfGUhMs/go-onion-transport"
         proxy "golang.org/x/net/proxy"
 )
 
@@ -174,10 +174,6 @@ func (n *IpfsNode) startOnlineServices(ctx context.Context, routingOption Routin
 		return err
 	}
 
-        onionAddrString := "/onion/ugje7ylqice7nntt:4003"
-
-        cfg.Addresses.Swarm = []string{}
-        cfg.Addresses.Swarm = append(cfg.Addresses.Swarm, onionAddrString)
 
         for i, addr := range cfg.Addresses.Swarm {
                 m, err := ma.NewMultiaddr(addr)
@@ -191,7 +187,6 @@ func (n *IpfsNode) startOnlineServices(ctx context.Context, routingOption Routin
                         usingClearnet = true
                         break
                 } else if p[0].Name == "onion" {
-			fmt.Printf("Using Tor on configured address %d\n", i);
                         usingTor = true
                         addrutil.SupportedTransportStrings = append(addrutil.SupportedTransportStrings, "/onion")
                         t, err := ma.ProtocolsWithString("/onion")
@@ -212,9 +207,6 @@ func (n *IpfsNode) startOnlineServices(ctx context.Context, routingOption Routin
 
         torControl := ""
 
-
-        usingTor = true
-        usingClearnet = false
 
         if usingTor {
                 //adding Onion transport to SupportedTransportStrings
@@ -241,9 +233,11 @@ func (n *IpfsNode) startOnlineServices(ctx context.Context, routingOption Routin
                 }
                 torPw := "password"
                 auth := &proxy.Auth{Password: torPw}
-                repoPath := "/var/lib/tor/hidden_service/"
 
-                onionTransport, err = oniontp.NewOnionTransport("tcp4", torControl, auth, repoPath, (usingTor && usingClearnet))
+                onionAddress := cfg.OnionKeys[0:16]
+                onionPrivateKey := cfg.OnionKeys[16:len(cfg.OnionKeys)]
+
+                onionTransport, err = oniontp.NewOnionTransport("tcp4", torControl, auth, &onionAddress, &onionPrivateKey, (usingTor && usingClearnet))
                 if err != nil {
                         log.Error(err)
                         return err

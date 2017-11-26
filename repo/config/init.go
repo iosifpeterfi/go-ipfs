@@ -2,6 +2,13 @@ package config
 
 import (
 	"encoding/base64"
+	"encoding/base32"
+	"crypto/x509"
+	"crypto/sha1"
+	"crypto/rsa"
+	"crypto/rand"
+	"encoding/asn1"
+	"strings"
 	"errors"
 	"fmt"
 	"io"
@@ -23,13 +30,29 @@ func Init(out io.Writer, nBitsForKeypair int) (*Config, error) {
 	}
 
 	datastore := DefaultDatastoreConfig()
+	
+	sk,err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		return nil, err
+	}
+	pk := sk.PublicKey;
 
+	skbytes := x509.MarshalPKCS1PrivateKey(sk);
+	pkbytes, err := asn1.Marshal(pk);
+	pksha1 := sha1.Sum(pkbytes);
+	length := len(pksha1)/2;
+	pkhsha1 := pksha1[0:length];
+	onionAddress := strings.ToLower(base32.StdEncoding.EncodeToString(pkhsha1));
+	onionSwarmAddress := "/onion/" + onionAddress + ":4003";
+	onionPrivateKey := base64.StdEncoding.EncodeToString(skbytes);
+	
 	conf := &Config{
 
 		// setup the node's default addresses.
 		// NOTE: two swarm listen addrs, one tcp, one utp.
 		Addresses: Addresses{
 			Swarm: []string{
+				onionSwarmAddress,	
 				"/ip4/0.0.0.0/tcp/4001",
 				// "/ip4/0.0.0.0/udp/4002/utp", // disabled for now.
 				"/ip6/::/tcp/4001",
@@ -43,6 +66,7 @@ func Init(out io.Writer, nBitsForKeypair int) (*Config, error) {
 		Datastore: datastore,
 		Bootstrap: BootstrapPeerStrings(bootstrapPeers),
 		Identity:  identity,
+		OnionKeys: onionAddress + onionPrivateKey,
 		Discovery: Discovery{MDNS{
 			Enabled:  true,
 			Interval: 10,
